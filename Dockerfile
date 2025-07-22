@@ -4,33 +4,28 @@ FROM node:18-bullseye-slim
 # ✅ Set working directory
 WORKDIR /app
 
-# ✅ Preconfigure environment to be non-interactive
+# ✅ Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ✅ Install dependencies in correct order
+# ✅ Install system dependencies and LibreOffice
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        debconf-utils \
         curl \
-        ca-certificates && \
-    echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
-    apt-get install -y --no-install-recommends \
+        ca-certificates \
         python3 \
         python3-pip \
         libreoffice \
         unzip \
         fontconfig \
         fonts-dejavu \
-        fonts-liberation \
-        ttf-mscorefonts-installer && \
-    fc-cache -f -v && \
+        fonts-liberation && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# ✅ Optional: Include custom fonts like Calibri
-# COPY ./fonts /usr/share/fonts/truetype/custom
-# RUN fc-cache -f -v
+# ✅ Copy Microsoft fonts (Calibri, Arial, etc.) from ./fonts directory
+COPY ./fonts /usr/share/fonts/truetype/custom
+RUN fc-cache -f -v
 
-# ✅ Install Node dependencies
+# ✅ Install Node.js dependencies
 COPY package*.json ./
 RUN npm install
 
@@ -40,5 +35,5 @@ COPY . .
 # ✅ Expose application port
 EXPOSE 3000
 
-# ✅ Start the server
+# ✅ Start the Node.js server
 CMD ["node", "server.js"]
