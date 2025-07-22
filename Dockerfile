@@ -1,58 +1,44 @@
-# Use full Debian base with Node.js
-FROM node:18-bullseye
+# ✅ Base image with Node.js
+FROM node:18-bullseye-slim
 
-# Set working directory
+# ✅ Set working directory
 WORKDIR /app
 
-# Install system dependencies, fonts, and Python
+# ✅ Preconfigure environment for font installer (accept EULA silently)
+ENV DEBIAN_FRONTEND=noninteractive
+
+# ✅ Install dependencies, LibreOffice, and Microsoft fonts
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        wget \
         curl \
-        gnupg \
         ca-certificates \
-        fontconfig \
         python3 \
         python3-pip \
+        libreoffice \
         unzip \
-        cabextract \
-        libxinerama1 \
-        libxrandr2 \
-        libxrender1 \
-        libxi6 \
-        libgl1 \
-        libgtk-3-0 \
-        libnss3 \
-        libasound2 \
-        libxss1 \
-        libxshmfence1 \
-        libsm6 \
-        libxml2 \
-        libxslt1.1 \
+        fontconfig \
         fonts-dejavu \
-        ttf-mscorefonts-installer && \
-    fc-cache -fv && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+        fonts-liberation \
+        ttf-mscorefonts-installer \
+        && echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections \
+        && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Agree to Microsoft fonts license (non-interactive install)
-RUN echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections
+# ✅ Refresh font cache
+RUN fc-cache -f -v
 
-# Download and install LibreOffice 25.2.5
-RUN wget https://download.documentfoundation.org/libreoffice/stable/25.2.5/deb/x86_64/LibreOffice_25.2.5_Linux_x86-64_deb.tar.gz && \
-    tar -xzf LibreOffice_25.2.5_Linux_x86-64_deb.tar.gz && \
-    dpkg -i LibreOffice_25.2.5.*/DEBS/*.deb || apt-get install -f -y && \
-    ln -s /opt/libreoffice*/program/soffice /usr/bin/soffice && \
-    rm -rf LibreOffice_25.2.5_Linux_x86-64_deb*
+# ✅ Optional: copy custom .ttf fonts (like Calibri if you legally have it)
+# COPY ./fonts /usr/share/fonts/truetype/custom
+# RUN fc-cache -f -v
 
-# Install Node dependencies
+# ✅ Copy Node dependencies first for better caching
 COPY package*.json ./
 RUN npm install
 
-# Copy app files
+# ✅ Copy rest of the application
 COPY . .
 
-# Expose application port
+# ✅ Expose port (adjust if needed)
 EXPOSE 3000
 
-# Start app
+# ✅ Start the Node.js server
 CMD ["node", "server.js"]
