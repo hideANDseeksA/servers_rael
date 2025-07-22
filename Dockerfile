@@ -1,6 +1,6 @@
 FROM node:18-bullseye-slim
 
-# 1. Install all required system dependencies
+# 1. Install system dependencies required by LibreOffice
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         wget \
@@ -23,26 +23,31 @@ RUN apt-get update && \
         libxshmfence1 \
         libsm6 \
         libxml2 \
-        libxslt1.1 \  # ✅ This fixes libxslt.so.1 missing
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+        libxslt1.1 \
+        ca-certificates && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 2. Download and extract LibreOffice
-RUN wget https://download.documentfoundation.org/libreoffice/stable/25.2.5/deb/x86_64/LibreOffice_25.2.5_Linux_x86-64_deb.tar.gz
-
-# 3. Install LibreOffice
-RUN tar -xzf LibreOffice_25.2.5_Linux_x86-64_deb.tar.gz && \
+# 2. Download and install LibreOffice 25.2.5
+RUN wget https://download.documentfoundation.org/libreoffice/stable/25.2.5/deb/x86_64/LibreOffice_25.2.5_Linux_x86-64_deb.tar.gz && \
+    tar -xzf LibreOffice_25.2.5_Linux_x86-64_deb.tar.gz && \
     dpkg -i LibreOffice_25.2.5.*/DEBS/*.deb && \
-    ln -s /opt/libreoffice*/program/soffice /usr/bin/soffice && \
-    rm -rf LibreOffice_25.2.5_Linux-x86-64_deb*
+    ln -s /opt/libreoffice25.2/program/soffice /usr/bin/soffice && \
+    rm -rf LibreOffice_25.2.5_Linux_x86-64_deb*
 
-# 4. App setup
+# 3. Setup working directory
 WORKDIR /app
+
+# 4. Install Node.js dependencies
 COPY package*.json ./
 RUN npm install
+
+# 5. Copy application files
 COPY . .
 
-# 5. Fonts
+# 6. Update font cache
 RUN fc-cache -f -v
 
 EXPOSE 3000
+
+# 7. Start the application
 CMD ["node", "server.js"]
