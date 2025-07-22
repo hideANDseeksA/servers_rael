@@ -1,10 +1,10 @@
 # ✅ Base image with Node.js
 FROM node:18-bullseye-slim
 
-# Set working directory
+# ✅ Set working directory
 WORKDIR /app
 
-# ✅ Install Python, LibreOffice, and dependencies
+# ✅ Install Python, LibreOffice, and all fonts
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3 \
@@ -12,14 +12,24 @@ RUN apt-get update && \
         libreoffice \
         unzip \
         curl \
+        wget \
+        fontconfig \
         fonts-dejavu \
-        && apt-get clean && rm -rf /var/lib/apt/lists/*
+        ttf-mscorefonts-installer \
+        fonts-liberation \
+        fonts-crosextra-carlito \
+        fonts-crosextra-caladea \
+        && fc-cache -f -v && \
+        apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# ✅ Install node dependencies early for better layer caching
+# ✅ Pre-accept license for MS core fonts
+RUN echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections
+
+# ✅ Install node dependencies
 COPY package*.json ./
 RUN npm install
 
-# ✅ Copy full app including Python and frontend/public folders
+# ✅ Copy application source code
 COPY . .
 
 # ✅ Expose app port
