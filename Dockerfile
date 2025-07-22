@@ -15,21 +15,20 @@ RUN apt-get update && \
         fontconfig \
         && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# ✅ Copy Microsoft fonts into system font directory
-COPY fonts /usr/share/fonts/truetype/microsoft
-
-# ✅ Rebuild font cache
-RUN fc-cache -f -v
-
-# ✅ Copy only package files first to optimize layer caching
+# ✅ Copy package files and install dependencies
 COPY package*.json ./
 RUN npm install
 
-# ✅ Copy entire app (including server, routes, scripts, etc.)
+# ✅ Copy full app
 COPY . .
 
-# ✅ Expose the port your Node app runs on
+# ✅ Copy custom fonts and register them
+RUN mkdir -p /usr/share/fonts/truetype/custom && \
+    cp -r ./fonts/* /usr/share/fonts/truetype/custom/ && \
+    fc-cache -f -v
+
+# ✅ Expose the app port
 EXPOSE 3000
 
-# ✅ Start the Node.js server
+# ✅ Start server
 CMD ["node", "server.js"]
