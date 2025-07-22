@@ -1,41 +1,35 @@
+# ✅ Base image with Node.js
 FROM node:18-bullseye-slim
 
+# ✅ Set working directory
 WORKDIR /app
 
-# Set environment to avoid tzdata or font prompts
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Install dependencies, LibreOffice, and fonts
+# ✅ Install Python, LibreOffice, font tools, and dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        apt-utils \
-        software-properties-common \
-        wget \
-        curl \
-        unzip \
-        fontconfig \
-        gnupg \
-        debconf-utils \
         python3 \
         python3-pip \
         libreoffice \
-        fonts-dejavu \
-        fonts-liberation \
-        fonts-crosextra-carlito \
-        fonts-crosextra-caladea && \
-    echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
-    apt-get install -y --no-install-recommends ttf-mscorefonts-installer && \
-    fc-cache -f -v && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+        unzip \
+        curl \
+        fontconfig \
+        && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Node.js dependencies
+# ✅ Copy Microsoft fonts into system font directory
+COPY fonts /usr/share/fonts/truetype/microsoft
+
+# ✅ Rebuild font cache
+RUN fc-cache -f -v
+
+# ✅ Copy only package files first to optimize layer caching
 COPY package*.json ./
 RUN npm install
 
-# Copy full app
+# ✅ Copy entire app (including server, routes, scripts, etc.)
 COPY . .
 
-# Expose port
+# ✅ Expose the port your Node app runs on
 EXPOSE 3000
 
+# ✅ Start the Node.js server
 CMD ["node", "server.js"]
