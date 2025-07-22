@@ -10,7 +10,7 @@ input_path = sys.argv[1]
 output_path = sys.argv[2]
 name_value = sys.argv[3]
 office_value = sys.argv[4]
-division_value = sys.argv[5]  # NEW
+division_value = sys.argv[5]
 
 # Step 1: Unzip DOCX
 temp_dir = tempfile.mkdtemp()
@@ -24,7 +24,7 @@ with open(document_xml, 'r', encoding='utf-8') as f:
 
 xml_content = xml_content.replace('{{name}}', name_value)
 xml_content = xml_content.replace('{{from}}', office_value)
-xml_content = xml_content.replace('{{division}}', division_value)  # NEW
+xml_content = xml_content.replace('{{division}}', division_value)
 
 with open(document_xml, 'w', encoding='utf-8') as f:
     f.write(xml_content)
@@ -38,15 +38,12 @@ with ZipFile(modified_docx, 'w') as zip_out:
             arcname = os.path.relpath(file_path, temp_dir)
             zip_out.write(file_path, arcname)
 
-# Step 4: Convert to PDF
-soffice_path = r"C:\Program Files\LibreOffice\program\soffice.exe"
+# Step 4: Convert to PDF using LibreOffice (Linux path)
 subprocess.run([
-    soffice_path,
-    '--headless',
-    '--convert-to', 'pdf',
+    'soffice', '--headless', '--convert-to', 'pdf',
     '--outdir', os.path.dirname(output_path),
     modified_docx
-])
+], check=True)
 
 # Step 5: Rename and cleanup
 generated_pdf = modified_docx.replace('.docx', '.pdf')
@@ -57,9 +54,3 @@ os.rename(generated_pdf, output_path)
 shutil.rmtree(temp_dir)
 
 print("[OK] PDF generated:", output_path)
-print("DEBUG VALUES:")
-print("name_value:", name_value)
-print("school_or_office:", office_value)
-print("division_value:", division_value)
-
-

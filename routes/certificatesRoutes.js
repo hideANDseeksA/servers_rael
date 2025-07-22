@@ -6,7 +6,7 @@ const { execFile } = require('child_process');
 const router = express.Router();
 const { supabasePool } = require('../config/database');
 
-const pythonPath = 'D:\\Program Files\\python.exe'; // Update this if needed
+const pythonPath = 'python3'; // ✅ Use system Python in Docker
 const tempDir = path.join(__dirname, '../temp');
 
 if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
@@ -46,7 +46,7 @@ router.get('/generate-certificate', async (req, res) => {
 
     if (!rows.length) return res.status(404).json({ error: 'No record found' });
 
-    const { full_name, certificates_url, division, office_value} = rows[0];
+    const { full_name, certificates_url, division, office_value } = rows[0];
 
     const inputPath = path.join(tempDir, `${Date.now()}_input.docx`);
     const outputPath = inputPath.replace('.docx', '.pdf');
@@ -58,22 +58,24 @@ router.get('/generate-certificate', async (req, res) => {
 
     execFile(
       pythonPath,
-      ['convert.py', inputPath, outputPath, full_name,  office_value || '',division || ''],
+      ['convert.py', inputPath, outputPath, full_name, office_value || '', division || ''],
       (error, stdout, stderr) => {
         if (error) {
-          console.error(stderr || error.message);
+          console.error('[Python Error]', stderr || error.message);
           return res.status(500).json({ error: 'Conversion failed' });
         }
+
+        console.log('[Python STDOUT]', stdout);
 
         res.download(outputPath, `${full_name.replace(/\s+/g, '_')}_certificate.pdf`, err => {
           fs.unlinkSync(inputPath);
           fs.unlinkSync(outputPath);
-          if (err) console.error('Download error:', err);
+          if (err) console.error('[Download error]', err);
         });
       }
     );
   } catch (err) {
-    console.error('Error:', err.message);
+    console.error('[Server Error]', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
