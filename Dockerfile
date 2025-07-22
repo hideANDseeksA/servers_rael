@@ -1,30 +1,39 @@
-# ✅ Base image with Node.js
 FROM node:18-bullseye-slim
 
-# ✅ Set working directory
-WORKDIR /app
-
-# ✅ Install LibreOffice and safe fonts
+# 1. Update and install required utilities
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        libreoffice \
-        python3 \
-        python3-pip \
-        curl \
+        wget \
+        gdebi-core \
         fontconfig \
         fonts-dejavu \
-        fonts-liberation \
-        && apt-get clean && rm -rf /var/lib/apt/lists/*
+        python3 \
+        python3-pip \
+        unzip \
+        curl \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# ✅ Copy Node.js project files
+# 2. Download LibreOffice 25.2.5 .deb archive
+RUN wget https://download.documentfoundation.org/libreoffice/stable/25.2.5/deb/x86_64/LibreOffice_25.2.5_Linux_x86-64_deb.tar.gz
+
+# 3. Extract and install
+RUN tar -xzf LibreOffice_25.2.5_Linux_x86-64_deb.tar.gz && \
+    dpkg -i LibreOffice_25.2.5.*/DEBS/*.deb && \
+    rm -rf LibreOffice_25.2.5_Linux_x86-64_deb* 
+
+# 4. Optionally, install help/lang packs if needed
+# RUN dpkg -i LibreOffice_xxx/DEBS/desktop-integration/*.deb
+
+# 5. Install node dependencies and copy fonts + code
+WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# ✅ Copy application code
 COPY . .
 
-# ✅ Expose the app port
+# 6. Refresh font cache
+RUN fc-cache -f -v
+
 EXPOSE 3000
 
-# ✅ Start your server
 CMD ["node", "server.js"]
