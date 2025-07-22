@@ -4,31 +4,27 @@ FROM node:18-bullseye-slim
 # ✅ Set working directory
 WORKDIR /app
 
-# ✅ Install Python, LibreOffice, font tools, and dependencies
+# ✅ Install LibreOffice and required dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        libreoffice \
         python3 \
         python3-pip \
-        libreoffice \
-        unzip \
         curl \
         fontconfig \
+        fonts-dejavu \
+        ttf-mscorefonts-installer \
         && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# ✅ Copy package files and install dependencies
+# ✅ Copy package files and install Node.js dependencies
 COPY package*.json ./
 RUN npm install
 
-# ✅ Copy full app
+# ✅ Copy application code
 COPY . .
 
-# ✅ Copy custom fonts and register them
-RUN mkdir -p /usr/share/fonts/truetype/custom && \
-    cp -r ./fonts/* /usr/share/fonts/truetype/custom/ && \
-    fc-cache -f -v
-
-# ✅ Expose the app port
+# ✅ Expose app port
 EXPOSE 3000
 
-# ✅ Start server
+# ✅ Start Node.js server
 CMD ["node", "server.js"]
