@@ -62,4 +62,3 @@ print("name_value:", name_value)
 print("school_or_office:", office_value)
 print("division_value:", division_value)
 
-
