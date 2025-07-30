@@ -11,9 +11,9 @@ const tempDir = path.join(__dirname, '../temp');
 
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
 
-  router.get('/generate-certificate', async (req, res) => {
-    const { phone } = req.query;
-    if (!phone) return res.status(400).json({ error: 'Phone number is required' });
+router.get('/generate-certifacates', async (req, res) => {
+    const { registration_id } = req.query;
+    if (!registration_id) return res.status(400).json({ error: 'registration_id number is required' });
 
     try {
       const { rows } = await supabasePool.query(
@@ -39,9 +39,9 @@ const tempDir = path.join(__dirname, '../temp');
         LEFT JOIN rael.divisions sd ON d.division_id = sd.id
         LEFT JOIN rael.divisions od ON o.division = od.id
         LEFT JOIN rael.section sec ON o.section = sec.id
-        WHERE r.phone_number = $1
+        WHERE r.id = $1
         LIMIT 1`,
-        [phone]
+        [registration_id]
       );
 
       if (!rows.length) return res.status(404).json({ error: 'No record found' });
