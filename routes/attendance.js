@@ -155,6 +155,15 @@ router.get("/get_participant_full_attendance", async (req, res) => {
   }
 });
 
-
+router.delete("/", async (req, res) => {
+  try {
+    const query = `DELETE FROM rael.attendances`;
+    await supabaseClient.query(query);
+    res.status(200).json({ message: "All attendances records deleted successfully." });
+  } catch (error) {
+    console.error("Error deleting evaluations:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 
 module.exports = router;

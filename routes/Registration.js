@@ -75,7 +75,7 @@ router.post("/creates", upload.fields([
 
     const query = `
       INSERT INTO rael.registration 
-      (f_name,m_name,l_name,suffix, email_address, school, or_number, payment_date, phone_number, or_receipt_url,
+      (f_name,m_name,l_name,suffix, email_address, school, t_shirt_size, payment_date, phone_number, or_receipt_url,
        participant_image_url, position, food_restriction,  event_id, office_id, participant_type)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,$11, $12, $13,$14,$15,$16) RETURNING *
     `;
@@ -103,23 +103,27 @@ router.post("/creates", upload.fields([
     const result = await supabaseClient.query(query, values);
 
     if (result.rowCount === 1) {
-      const allRows = await supabaseClient.query('SELECT * FROM rael.registration ORDER BY id DESC');
+      const allRows = await supabaseClient.query(`SELECT * FROM rael.registration Where event_id = '${registration.event_id}' ORDER BY id DESC`);
       res.status(200).json({ message: "Registration added successfully" , id_info: result.rows[0].id,count: allRows.rowCount});
       
     } else {
       res.status(500).json({ error: "Failed to add registration" });
     }
-  } catch (error) {
-    if (error.code === '23505' && error.constraint === 'registration_or_number_key') {
-      return res.status(409).json({ error: "OR NUMBER ALREADY USED!" });
-    }
-     if (error.code === '23505' && error.constraint === 'registration_email_address_key') {
-      return res.status(409).json({ error: "Email ALREADY USED!" });
-    }
-    console.error("[ERROR] Caught exception:", error);
-    // Fallback for other errors
-    return res.status(500).json({ error: "Internal Server Error" });
+} catch (error) {
+  // Check for trigger-based exceptions by matching the error message text
+  const msg = error?.message?.toLowerCase();
+
+  if (msg?.includes('email is already registered for this event')) {
+    return res.status(409).json({ error: "Email is already registered for this event." });
   }
+
+  if (msg?.includes('phone number is already registered for this event')) {
+    return res.status(409).json({ error: "Phone number is already registered for this event." });
+  }
+
+  return res.status(500).json({ error: "Internal server error.", details: error.message });
+}
+
 });
 
 router.get("/get", async (req, res) => {
@@ -140,7 +144,7 @@ TRIM(CONCAT_WS(' ',
 )) AS full_name,
   rael.registration.email_address,
   rael.registration.phone_number,
-  COALESCE(rael.registration.or_number, NULL) AS or_number,
+  rael.registration.t_shirt_size,
   rael.registration.or_receipt_url,
   rael.registration.participant_image_url,
   rael.registration.position,
@@ -155,7 +159,7 @@ TRIM(CONCAT_WS(' ',
     rael.registration.time_stamp AT TIME ZONE 'Asia/Manila',
     'FMMonth FMDD, YYYY hh12:mi AM'
   ) AS registration_date,
-
+  rael.registration.certificate_access,
   rael.events.name AS event_name
 
 FROM rael.registration
@@ -211,6 +215,28 @@ LEFT JOIN rael.functional_division
   }
 });
 
+router.put("/update-certificate-access", async (req, res) => {
+  const { ids, access } = req.body;
+
+  if (!Array.isArray(ids) || typeof access !== "boolean") {
+    return res.status(400).json({ error: "Invalid request body" });
+  }
+
+  const query = `
+    UPDATE rael.registration
+    SET certificate_access = $1
+    WHERE id = ANY($2::uuid[])
+  `;
+
+  try {
+    await supabaseClient.query(query, [access, ids]);
+    res.status(200).json({ message: "Certificate access updated successfully." });
+  } catch (error) {
+    console.error("Bulk update error:", error);
+    res.status(500).json({ error: "Failed to update certificate access." });
+  }
+});
+
 
 router.get("/get_data_id", async (req, res) => {
   try {
@@ -237,6 +263,8 @@ router.get("/get_data_id", async (req, res) => {
         rael.registration.position,
         schools.name AS school,
         section.name AS office,
+        rael.events.name AS event_name,
+        rael.events.description AS event_description,
         COALESCE(registration.f_name, 'N/A') AS name,
         COALESCE(registration.participant_image_url, '') AS participant_image_url,
         COALESCE(district.district_name, functional_division.name) AS district_name,
@@ -295,6 +323,8 @@ router.get("/get_participant", async (req, res) => {
 )) AS full_name,
         rael.registration.phone_number,
         rael.registration.position,
+        rael.events.name AS event_name,
+        rael.events.description AS event_description,
         schools.name AS school,
         section.name AS office,
         COALESCE(registration.f_name, 'N/A') AS name,
@@ -336,83 +366,7 @@ router.get("/get_participant", async (req, res) => {
   }
 });
 
-router.get("/get_data_certificate", async (req, res) => {
-  try {
-    const query = `
-   WITH event_days AS (
-  SELECT 
-    e.id AS event_id,
-    COUNT(*) AS total_days
-  FROM rael.events e
-  CROSS JOIN LATERAL generate_series(e.start_date, e.end_date, interval '1 day') AS event_date
-  GROUP BY e.id
-)
 
-SELECT 
-  TRIM(CONCAT_WS(' ',
-    registration.f_name,
-    CASE 
-      WHEN registration.m_name IS NOT NULL AND registration.m_name <> '' 
-        THEN CONCAT(LEFT(registration.m_name, 1), '.') 
-      ELSE NULL 
-    END,
-    registration.l_name,
-    registration.suffix
-  )) AS full_name,
-
-  events.venue,
-  TO_CHAR(events.start_date, 'FMMonth DD, YYYY') AS start_date,
-  TO_CHAR(events.end_date, 'FMMonth DD, YYYY') AS end_date,
-
-  registration.phone_number,
-  registration.position,
-
-  COALESCE(schools.name, section.name) AS school,
-  COALESCE(school_div.division_name, office_div.division_name) AS division_name
-
-FROM rael.attendances
-INNER JOIN rael.registration 
-  ON attendances.participant_id = registration.id
-INNER JOIN rael.events 
-  ON attendances.events_id = events.id
-INNER JOIN event_days ed
-  ON ed.event_id = events.id
-LEFT JOIN rael.office 
-  ON registration.office_id = office.id
-LEFT JOIN rael.functional_division 
-  ON office.functional_division = functional_division.id
-LEFT JOIN rael.section 
-  ON office.section = section.id
-LEFT JOIN rael.schools 
-  ON registration.school = schools.school_id
-LEFT JOIN rael.district 
-  ON schools.district_id = district.id
-LEFT JOIN rael.divisions AS school_div 
-  ON district.division_id = school_div.id
-LEFT JOIN rael.divisions AS office_div 
-  ON office.division = office_div.id
-
-WHERE attendances.time_in IS NOT NULL
-
-GROUP BY 
-  registration.f_name, registration.m_name, registration.l_name, registration.suffix,
-  events.id, events.venue, events.start_date, events.end_date,
-  registration.phone_number, registration.position,
-  schools.name, section.name,
-  school_div.division_name, office_div.division_name,
-  ed.total_days
-
-HAVING COUNT(DISTINCT attendances.date) = ed.total_days;
-
-    `;
-
-    const result = await supabasePool.query(query);
-    res.status(200).json(result.rows);
-  } catch (error) {
-    console.error("Error fetching certificates:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
 
 router.get("/get_division_count", async (req, res) => {
  

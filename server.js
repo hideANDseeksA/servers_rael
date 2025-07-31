@@ -57,9 +57,9 @@ app.use('/api/server',pingRoutes);
 app.use('/api/events', authenticate,eventsRoutes);
 app.use('/api/attendance',authenticate, attendanceRoutes);
 app.use('/api/IS',authenticate,Is);
-app.use('/api/certificates', certificatesRoutes);
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
+app.use('/api/evaluation_participant', authenticate, require('./routes/pariticipant_evaluation'));
+app.use('/api/certificates',authenticate, certificatesRoutes);
+app.use('/api/activities',authenticate, require('./routes/activity'));
 
 // 🚀 Start Server
 server.listen(PORT, () => {

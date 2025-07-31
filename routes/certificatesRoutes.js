@@ -6,7 +6,7 @@
   const router = express.Router();
   const { supabasePool } = require('../config/database');
 
-const pythonPath = 'python3'; // ✅ Use system Python in Docker
+const pythonPath = 'python3'; 
 const tempDir = path.join(__dirname, '../temp');
 
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
@@ -77,6 +77,55 @@ router.get('/generate-certifacates', async (req, res) => {
       res.status(500).json({ error: 'Server error' });
     }
   });
+
+router.get("/get_data_certificate", async (req, res) => {
+  const { phone } = req.query;
+
+  if (!phone) {
+    return res.status(400).json({ error: "Phone number is required." });
+  }
+
+  try {
+    const query = `
+      SELECT 
+        TRIM(CONCAT_WS(' ',
+          r.f_name,
+          CASE 
+            WHEN r.m_name IS NOT NULL AND r.m_name <> '' 
+              THEN CONCAT(LEFT(r.m_name, 1), '.') 
+            ELSE NULL 
+          END,
+          r.l_name,
+          r.suffix
+        )) AS full_name,
+        e.venue,
+        TO_CHAR(e.start_date, 'FMMonth DD, YYYY') AS start_date,
+        TO_CHAR(e.end_date, 'FMMonth DD, YYYY') AS end_date,
+        r.phone_number,
+        r.id AS registration_id,
+        r.position,
+        COALESCE(s.name, sec.name) AS school,
+        COALESCE(sd.division_name, od.division_name) AS division_name
+      FROM rael.registration r
+      JOIN rael.events e ON r.event_id = e.id
+      LEFT JOIN rael.office o ON r.office_id = o.id
+      LEFT JOIN rael.section sec ON o.section = sec.id
+      LEFT JOIN rael.schools s ON r.school = s.school_id
+      LEFT JOIN rael.district d ON s.district_id = d.id
+      LEFT JOIN rael.divisions sd ON d.division_id = sd.id
+      LEFT JOIN rael.divisions od ON o.division = od.id
+      WHERE r.phone_number = $1
+        AND r.certificate_access = true
+    `;
+
+    const result = await supabasePool.query(query, [phone]);
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("Error fetching certificate data:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 
   module.exports = router;
 
