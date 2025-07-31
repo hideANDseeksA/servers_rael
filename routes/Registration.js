@@ -247,29 +247,43 @@ router.get("/get_data_id", async (req, res) => {
     }
 
     const query = `
-      SELECT 
+       SELECT 
         registration.id,
-        TRIM(CONCAT_WS(' ',
-          registration.f_name,
-          CASE
-            WHEN registration.m_name IS NOT NULL AND registration.m_name <> ''
-              THEN CONCAT(LEFT(registration.m_name, 1), '.')
-            ELSE NULL
-          END,
-          registration.l_name,
-          registration.suffix
-        )) AS full_name,
+     TRIM(CONCAT_WS(' ',
+    registration.f_name,
+    CASE
+      WHEN registration.m_name IS NOT NULL AND registration.m_name <> ''
+        THEN CONCAT(LEFT(registration.m_name, 1), '.')
+      ELSE NULL
+    END,
+    registration.l_name,
+    registration.suffix
+)) AS full_name,
         rael.registration.phone_number,
         rael.registration.position,
+        rael.events.name AS event_name,
+CASE 
+  WHEN EXTRACT(MONTH FROM events.start_date) = EXTRACT(MONTH FROM events.end_date)
+       AND EXTRACT(YEAR FROM events.start_date) = EXTRACT(YEAR FROM events.end_date)
+  THEN 
+    TO_CHAR(events.start_date, 'FMMonth') || ' ' ||
+    TO_CHAR(events.start_date, 'DD') || '-' ||
+    TO_CHAR(events.end_date, 'DD, YYYY')
+  ELSE
+    TO_CHAR(events.start_date, 'FMMonth DD, YYYY') || ' – ' ||
+    TO_CHAR(events.end_date, 'FMMonth DD, YYYY')
+END AS formatted_event_date,
+
+
+        rael.events.description AS event_description,
         schools.name AS school,
         section.name AS office,
-        rael.events.name AS event_name,
-        rael.events.description AS event_description,
         COALESCE(registration.f_name, 'N/A') AS name,
         COALESCE(registration.participant_image_url, '') AS participant_image_url,
         COALESCE(district.district_name, functional_division.name) AS district_name,
         COALESCE(school_div.division_name, office_div.division_name) AS division_name,
         COALESCE(registration.participant_type, 'N/A') AS participant_type
+
       FROM rael.registration
       INNER JOIN rael.events 
         ON registration.event_id = events.id
@@ -309,7 +323,7 @@ router.get("/get_participant", async (req, res) => {
 
   try {
     const query = `
-      SELECT 
+    SELECT 
         registration.id,
      TRIM(CONCAT_WS(' ',
     registration.f_name,
@@ -324,6 +338,19 @@ router.get("/get_participant", async (req, res) => {
         rael.registration.phone_number,
         rael.registration.position,
         rael.events.name AS event_name,
+CASE 
+  WHEN EXTRACT(MONTH FROM events.start_date) = EXTRACT(MONTH FROM events.end_date)
+       AND EXTRACT(YEAR FROM events.start_date) = EXTRACT(YEAR FROM events.end_date)
+  THEN 
+    TO_CHAR(events.start_date, 'FMMonth') || ' ' ||
+    TO_CHAR(events.start_date, 'DD') || '-' ||
+    TO_CHAR(events.end_date, 'DD, YYYY')
+  ELSE
+    TO_CHAR(events.start_date, 'FMMonth DD, YYYY') || ' – ' ||
+    TO_CHAR(events.end_date, 'FMMonth DD, YYYY')
+END AS formatted_event_date,
+
+
         rael.events.description AS event_description,
         schools.name AS school,
         section.name AS office,
