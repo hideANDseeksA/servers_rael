@@ -1,6 +1,3 @@
-
-
-
 require('dotenv').config();
 const express = require('express');
 const { supabasePool  } = require('../config/database');
@@ -111,6 +108,7 @@ router.get("/get_active_events", async (req, res) => {
 // UPDATE an event
 
 // UPDATE an event (direct upload to Supabase Storage)
+
 router.put("/update_event/:id", upload.single('certificateFile'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -122,34 +120,47 @@ router.put("/update_event/:id", upload.single('certificateFile'), async (req, re
 
     let certificateUrl = null;
 
+    // Get the existing certificate URL
+    const existing = await supabasePool.query(
+      `SELECT certificates_url FROM rael.events WHERE id = $1`,
+      [id]
+    );
+
+    let oldCertificatePath = null;
+
+    if (existing.rows.length > 0 && existing.rows[0].certificates_url) {
+      const fullUrl = existing.rows[0].certificates_url;
+      const publicUrlPrefix = `${process.env.SUPABASE_URL}/storage/v1/object/public/certificates/`;
+      if (fullUrl.startsWith(publicUrlPrefix)) {
+        oldCertificatePath = fullUrl.replace(publicUrlPrefix, '');
+      }
+    }
+
     // Upload new certificate if provided
     if (req.file) {
-      const fileBuffer = req.file.buffer; // read file from memory
+      // Delete old file if it exists
+      if (oldCertificatePath) {
+        await supabase.storage.from('certificates').remove([oldCertificatePath]);
+      }
+
+      const fileBuffer = req.file.buffer;
       const mimeType = mime.lookup(req.file.originalname);
+      const filename = `event_certificates/${name}-${Date.now()}${path.extname(req.file.originalname)}`;
 
       const { data, error } = await supabase.storage
         .from('certificates')
-        .upload(`event_certificates/${name}-${Date.now()}${path.extname(req.file.originalname)}`, fileBuffer, {
-          contentType: mimeType
+        .upload(filename, fileBuffer, {
+          contentType: mimeType,
         });
 
       if (error) {
-        return res.status(500).json({ error: "Failed to upload certificate file." });
+        return res.status(500).json({ error: "Failed to upload new certificate file." });
       }
 
       certificateUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/certificates/${data.path}`;
-    }
-
-    // If no new certificate uploaded, retain old URL
-    if (!certificateUrl) {
-      const existing = await supabasePool.query(
-        `SELECT certificates_url FROM rael.events WHERE id = $1`,
-        [id]
-      );
-
-      if (existing.rows.length > 0) {
-        certificateUrl = existing.rows[0].certificates_url;
-      }
+    } else {
+      // No new file uploaded, retain old URL
+      certificateUrl = existing.rows[0]?.certificates_url || null;
     }
 
     const query = `
@@ -188,6 +199,8 @@ router.put("/update_event/:id", upload.single('certificateFile'), async (req, re
 });
 
 
+
+// DELETE an event
 // DELETE an event
 router.delete("/delete_event/:id", async (req, res) => {
   try {
@@ -209,14 +222,16 @@ router.delete("/delete_event/:id", async (req, res) => {
 
     // If there's a certificate URL, delete the file from Supabase Storage
     if (certificateUrl) {
-      const pathStart = certificateUrl.indexOf('/certificates/');
-      const filePath = certificateUrl.substring(pathStart + 1); // remove leading slash
+      const publicUrlPrefix = `${process.env.SUPABASE_URL}/storage/v1/object/public/certificates/`;
+      const filePath = certificateUrl.replace(publicUrlPrefix, ''); // Extract relative path
+
+      console.log("Deleting file from storage:", filePath); // Optional: log for debugging
 
       const { error: deleteError } = await supabase.storage.from('certificates').remove([filePath]);
 
       if (deleteError) {
         console.error("Failed to delete file from storage:", deleteError.message);
-        // Note: don't block the response just because file deletion failed
+        // File deletion failed, but do not block the main response
       }
     }
 
@@ -226,6 +241,7 @@ router.delete("/delete_event/:id", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
 
 
 module.exports = router;
