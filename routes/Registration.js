@@ -394,6 +394,71 @@ END AS formatted_event_date,
 });
 
 
+router.get("/get_all_id", async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        registration.id,
+        TRIM(CONCAT_WS(' ',
+          registration.f_name,
+          CASE
+            WHEN registration.m_name IS NOT NULL AND registration.m_name <> ''
+              THEN CONCAT(LEFT(registration.m_name, 1), '.')
+            ELSE NULL
+          END,
+          registration.l_name,
+          registration.suffix
+        )) AS full_name,
+        rael.registration.phone_number,
+        rael.registration.position,
+        rael.events.name AS event_name,
+        CASE 
+          WHEN EXTRACT(MONTH FROM events.start_date) = EXTRACT(MONTH FROM events.end_date)
+               AND EXTRACT(YEAR FROM events.start_date) = EXTRACT(YEAR FROM events.end_date)
+          THEN 
+            TO_CHAR(events.start_date, 'FMMonth') || ' ' ||
+            TO_CHAR(events.start_date, 'DD') || '-' ||
+            TO_CHAR(events.end_date, 'DD, YYYY')
+          ELSE
+            TO_CHAR(events.start_date, 'FMMonth DD, YYYY') || ' – ' ||
+            TO_CHAR(events.end_date, 'FMMonth DD, YYYY')
+        END AS formatted_event_date,
+        rael.events.description AS event_description,
+        schools.name AS school,
+        section.name AS office,
+        COALESCE(registration.f_name, 'N/A') AS name,
+        COALESCE(registration.participant_image_url, '') AS participant_image_url,
+        COALESCE(district.district_name, functional_division.name) AS district_name,
+        COALESCE(school_div.division_name, office_div.division_name) AS division_name,
+        COALESCE(registration.participant_type, 'N/A') AS participant_type
+
+      FROM rael.registration
+      INNER JOIN rael.events 
+        ON registration.event_id = events.id
+      LEFT JOIN rael.office 
+        ON registration.office_id = office.id
+      LEFT JOIN rael.functional_division 
+        ON office.functional_division = functional_division.id
+      LEFT JOIN rael.section 
+        ON office.section = section.id
+      LEFT JOIN rael.schools 
+        ON registration.school = schools.school_id
+      LEFT JOIN rael.district 
+        ON schools.district_id = district.id
+      LEFT JOIN rael.divisions AS school_div 
+        ON district.division_id = school_div.id
+      LEFT JOIN rael.divisions AS office_div 
+        ON office.division = office_div.id;
+    `;
+
+    const result = await supabaseClient.query(query);
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("Error fetching registrations:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 
 router.get("/get_division_count", async (req, res) => {
  
