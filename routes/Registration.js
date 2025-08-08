@@ -572,6 +572,159 @@ router.post("/delete_bulk", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+router.get("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { rows } = await supabaseClient.query(
+      `SELECT *,t_shirt_size AS or_number FROM rael.registration WHERE id = $1`,
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Registration not found" });
+    }
+
+    return res.status(200).json(rows[0]);
+
+  } catch (error) {
+    return res.status(500).json({
+      error: "Internal server error.",
+      details: error.message
+    });
+  }
+});
+
+
+router.put("/update/:id", upload.fields([
+  { name: 'or_receipt', maxCount: 1 },
+  { name: 'participant_image', maxCount: 1 }
+]), async (req, res) => {
+  const { id } = req.params;
+  const registration = req.body;
+
+  // Validate email format if provided
+  if (registration.email_address && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registration.email_address)) {
+    return res.status(400).json({ error: "Invalid email address format." });
+  }
+
+  try {
+    let orReceiptUrl = null;
+    let participantImageUrl = null;
+
+    // Handle OR receipt upload if provided
+    if (req.files?.or_receipt?.[0]) {
+      const file = req.files.or_receipt[0];
+      const fileExt = file.originalname.split('.').pop();
+      const fileName = `receipt_${Date.now()}.${fileExt}`;
+      const filePath = `receipt/${fileName}`;
+      const fileBuffer = fs.readFileSync(file.path);
+
+      const { error: uploadError } = await supabase.storage
+        .from('image')
+        .upload(filePath, fileBuffer, {
+          contentType: file.mimetype,
+          upsert: true,
+        });
+
+      fs.unlinkSync(file.path);
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('image').getPublicUrl(filePath);
+      orReceiptUrl = data.publicUrl;
+    }
+
+    // Handle participant image upload if provided
+    if (req.files?.participant_image?.[0]) {
+      const file = req.files.participant_image[0];
+      const fileExt = file.originalname.split('.').pop();
+      const fileName = `participant_${Date.now()}.${fileExt}`;
+      const filePath = `participant/${fileName}`;
+      const fileBuffer = fs.readFileSync(file.path);
+
+      const { error: uploadError } = await supabase.storage
+        .from('image')
+        .upload(filePath, fileBuffer, {
+          contentType: file.mimetype,
+          upsert: true,
+        });
+
+      fs.unlinkSync(file.path);
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('image').getPublicUrl(filePath);
+      participantImageUrl = data.publicUrl;
+    }
+
+    // Build update fields dynamically so null values won't overwrite unless intended
+    const fields = [];
+    const values = [];
+    let index = 1;
+
+    const addField = (col, val) => {
+      if (val !== undefined) {
+        fields.push(`${col} = $${index++}`);
+        values.push(val);
+      }
+    };
+
+    addField("f_name", registration.f_name);
+    addField("m_name", registration.m_name);
+    addField("l_name", registration.l_name);
+    addField("suffix", registration.suffix);
+    addField("email_address", registration.email_address);
+    addField("school", registration.school || null);
+    addField("t_shirt_size", registration.or_number);
+    addField("payment_date", registration.payment_date);
+    addField("phone_number", registration.phone_number);
+    if (orReceiptUrl) addField("or_receipt_url", orReceiptUrl);
+    if (participantImageUrl) addField("participant_image_url", participantImageUrl);
+    addField("position", registration.position);
+    addField("food_restriction", registration.food_restriction);
+    addField("event_id", registration.event_id);
+    addField("office_id", registration.office_id);
+    addField("participant_type", registration.participant_type);
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: "No fields provided to update." });
+    }
+
+    values.push(id);
+
+    const query = `
+      UPDATE rael.registration 
+      SET ${fields.join(", ")} 
+      WHERE id = $${index}
+      RETURNING *;
+    `;
+
+    const result = await supabaseClient.query(query, values);
+
+    if (result.rowCount === 1) {
+      res.status(200).json({ message: "Registration updated successfully", data: result.rows[0] });
+    } else {
+      res.status(404).json({ error: "Registration not found" });
+    }
+
+  } catch (error) {
+    const msg = error?.message?.toLowerCase();
+     console.log("Error updating registration:", error);
+
+    if (msg?.includes('email is already registered for this event')) {
+      return res.status(409).json({ error: "Email is already registered for this event." });
+    }
+
+    if (msg?.includes('phone number is already registered for this event')) {
+      return res.status(409).json({ error: "Phone number is already registered for this event." });
+    }
+
+    return res.status(500).json({ error: "Internal server error.", details: error.message });
+   
+  }
+});
+
+
 
 
 module.exports = router;
+
