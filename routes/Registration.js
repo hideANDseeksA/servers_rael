@@ -682,7 +682,7 @@ router.put("/update/:id", upload.fields([
     addField("position", registration.position);
     addField("food_restriction", registration.food_restriction);
     addField("event_id", registration.event_id);
-    addField("office_id", registration.office_id);
+    addField("office_id", registration.office_id || null);
     addField("participant_type", registration.participant_type);
 
     if (fields.length === 0) {
@@ -727,4 +727,5 @@ router.put("/update/:id", upload.fields([
 
 
 module.exports = router;
+
 
